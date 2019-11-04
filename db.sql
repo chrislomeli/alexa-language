@@ -25,7 +25,7 @@ create table verbs.expressions
 	valid_he boolean default true
 );
 
-alter table verbs.expressions owner to postgres;
+alter table verbs.expressions_orig owner to postgres;
 
 create table verbs.conjugations
 (
@@ -42,5 +42,5 @@ create table verbs.conjugations
 	pronoun_we text
 );
 
-alter table verbs.conjugations owner to postgres;
+alter table verbs.conjugations_orig owner to postgres;
 
