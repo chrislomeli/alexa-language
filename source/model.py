@@ -4,13 +4,14 @@ from abc import abstractmethod
 
 
 class FlashCard:
-    def __init__(self, verb, source_lang, source_phrase, tense, conjugation_id, expression_id, pronoun):
+    def __init__(self, conjugated: str, infinitive: str, source_lang: str, source_phrase: str, tense: str, conjugation_id: str, expression_id: str, pronoun: str):
         self.id = f"{conjugation_id}-{expression_id}"
-        self.verb = verb
+        # self.conjugated_verb = conjugated
+        self.infinitive_form = "to " + infinitive
         self.source_lang = source_lang
-        self.source_phrase = source_phrase
         self.tense = tense
-        self.pronoun = pronoun
+        self.pronoun = pronoun.title()
+        self.source_phrase = pronoun.title() + " " + conjugated + " " + source_phrase
         self.dest_lang = None
         self.dest_phrase = None
         self.dest_voice = None
@@ -28,7 +29,7 @@ class StorageManager:
 
     def set_flash_card(self, flash_card: FlashCard):
         path = os.path.join(f"{flash_card.source_lang}-{flash_card.dest_lang}",
-                            flash_card.verb, flash_card.tense, flash_card.pronoun)
+                            flash_card.conjugated_verb, flash_card.tense, flash_card.pronoun)
         flash_card.url = f"{path}/{flash_card.id}.mp3"
         flash_card.meta_data = {'language': flash_card.dest_lang, 'phrase': flash_card.dest_phrase}
         self.flash_card = flash_card

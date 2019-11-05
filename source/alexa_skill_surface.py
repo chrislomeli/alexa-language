@@ -9,6 +9,8 @@
     "fr-CA": dict(VoiceId='Chantal', TargetLanguageCode="fr")
 
 """
+from typing import List
+
 from source.audio_manager import AudioManager
 from source.configure import Configuration
 from source.database import Database
@@ -39,6 +41,15 @@ voices = {
     "fr-CA": 'Chantal'
 }
 
+personas = {
+    "first": {"plural": "we", "singular": "i"},
+    "second": {"plural": "you", "singular": "you"},
+    "third": {"plural": "they", "singular": "he"}
+}
+
+
+def handle_start_request(request_string):
+    pass
 
 def start_session(language, dialect, speed, pronouns, tenses, verbs) -> dict:
     # intent to start a new collection of quiz's
@@ -66,6 +77,49 @@ def start_session(language, dialect, speed, pronouns, tenses, verbs) -> dict:
     )
     f = generate_flash_cards(session_attributes=session_data)
     flash_card, session_attributes = next(f)
+
+
+def parse_pronouns(request_string: str) -> List[str]:
+    words = request_string
+    person = list(filter(lambda x: x in ("first", "second", "third"), words))
+    pluralism = "plural" if "plural" in words else "singular"
+    pronouns = []
+    for p in person:
+        try:
+            pronouns.append(personas[p][pluralism])
+        except:
+            pass
+
+    pronoun_list = list(
+        map(lambda y: f"""'{y}'""", pronouns))
+    return pronoun_list
+
+
+def parse_verbs(request_string: str) -> List[str]:
+    words = request_string
+    verbs = {}
+    v_clause = False
+    for i in range(len(words)):
+        word = words[i]
+        if word in ("verb", "verbs"):
+            v_clause = True
+        if v_clause and word == "to" and i + 1 < len(words):
+            verbs[words[i + 1]] = i + 1
+    return list(verbs.keys())
+
+
+def parse_tenses(request_string: str) -> List[str]:
+    words = request_string
+    return list(
+        map(lambda y: f"""'{y}'""",
+            filter(lambda x: x in ("future", "past", "present"), words)))
+
+
+def parse_request(request_string):
+    words = request_string
+    pronouns = parse_pronouns(words)
+    tenses = parse_tenses(words)
+    verbs = parse_verbs(words)
 
 
 def generate_flash_cards(session_attributes):

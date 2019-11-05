@@ -35,7 +35,6 @@ INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (34, 'leave', 'early'
 INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (35, 'want', 'to understand it');
 INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (36, 'see', 'the bottom');
 INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (37, 'want', 'their acceptance');
-INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (38, 'being', 'american');
 INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (39, 'be', 'drunk');
 INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (40, 'say', 'too much');
 INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (41, 'have', 'some reservations');
@@ -88,3 +87,4 @@ INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (87, 'see', 'the airp
 INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (88, 'stay', 'late');
 INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (89, 'know', 'how it feels');
 INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (90, 'say', 'nothing');
+INSERT INTO verbs.phrases (phrase_id, verb, phrase) VALUES (38, 'being', 'a student');
