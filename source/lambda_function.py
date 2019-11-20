@@ -18,13 +18,18 @@ from ask_sdk_core.skill_builder import SkillBuilder
 from ask_sdk_core.utils import is_intent_name, is_request_type
 from ask_sdk_model import Response
 
-from lambda_utils import SlotInfo, convert_person_to_pronouns
+from source.alexa_skill_surface import marshal_request, generate_dynamic_cards, fetch_dynamic_cards
+from source.model import FlashCard
 
+PROGRAM_NAME = "verb-flashcards"
 WELCOME_MESSAGE = "Let's play!"
-HELP_MESSAGE = "Figure it out for yourself, looser!"
-EXIT_SKILL_MESSAGE = "good riddance!"
+HELP_MESSAGE = f"{PROGRAM_NAME} provides a set of flash cards based on your requirements.  " \
+               f"Each flash card will say a phrase in the source language, then pause for your response.  " \
+               f"{PROGRAM_NAME} will then say the same phrase in the destination language"
+
+EXIT_SKILL_MESSAGE = f"Thanks for playing {PROGRAM_NAME}"
 START_QUIZ_MESSAGE = "Let's get this party started. "
-MAX_QUESTIONS = 10
+MAX_FLASHCARDS = 10
 FALLBACK_ANSWER = "I can't help you."
 
 # Skill Builder object
@@ -92,13 +97,6 @@ class ExitIntentHandler(AbstractRequestHandler):
 
 
 class QuizHandler(AbstractRequestHandler):
-    """Handler for starting a quiz.
-    The ``handle`` method will initiate a quiz state and build a
-    question randomly from the states data, using the util methods.
-    If the skill can use cards, then the question choices are added to
-    the card and shown in the Response. If the skill uses display,
-    then the question is displayed using RenderTemplates.
-    """
 
     def can_handle(self, handler_input):
         # type: (HandlerInput) -> bool
@@ -108,33 +106,18 @@ class QuizHandler(AbstractRequestHandler):
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
         logger.info("In QuizHandler")
-        slots = handler_input.request_envelope.request.intent.slots
 
-        # parse user utterances
-        tenses = SlotInfo.get_instance(slots, 'tense', ["past", "present", "future"])
-        game_type = SlotInfo.get_instance(slots, 'game_type', ["conjugation"])
-        verbs = SlotInfo.get_instance(slots, 'verbs', [])
-        person = SlotInfo.get_instance(slots, 'person', ["first","second","third"])
-        plurality = SlotInfo.get_instance(slots, 'plurality', ["singular", "plural"])
+        # parse out request parameters
+        params = marshal_request(handler_input.request_envelope.request.intent.slots)
 
-        # transpose person and plurality to pronouns (he, she, we, you...)
-        person.resolved_values = convert_person_to_pronouns(person, plurality)
-
+        # add parsed request parameters to the session attributes
         attr = handler_input.attributes_manager.session_attributes
-        attr["state"] = "REQUESTED"
-        attr["offset"] = 0
-        attr["tense"] = tenses.to_string()
-        attr["game_type"] = game_type.to_string()
-        attr["verbs"] = verbs.to_string()
-        attr["pronouns"] = person.to_string()
+        attr.update(params)
 
-        logger.info("attr:GAME-TYPE: {}".format(attr["game_type"]))
-        logger.info("attr:TENSE: {}".format(attr["tense"]))
-        logger.info("attr:PRONOUNS: {}".format(attr["pronouns"]))
-        logger.info("attr:VERBS: {}".format(attr["verbs"]))
+        # generate a set of cards
+        generate_dynamic_cards(session_attributes=attr)
 
-        logger.info("attr:PLURALS: {}".format(plurality.to_string()))
-
+        # prompt the user to continue
         question = "What's your favorite color?"
         response_builder = handler_input.response_builder
         response_builder.speak(START_QUIZ_MESSAGE + question)
@@ -156,61 +139,88 @@ class QuizAnswerHandler(AbstractRequestHandler):
     def can_handle(self, handler_input):
         # type: (HandlerInput) -> bool
         attr = handler_input.attributes_manager.session_attributes
-        return (is_intent_name("AnswerIntent")(handler_input) and
-                attr.get("state") == "QUIZ")
+        return is_intent_name("AnswerIntent")(handler_input)
 
+    # def check_page(self, handler_input):
+    #     # valid states: REQUESTED, IN-PROGRESS
+    #     attr = handler_input.attributes_manager.session_attributes
+    #
+    #     # get the current flashcard
+    #     if 'deck' not in attr:
+    #         raise Exception("In answer method, but no decked was queued ")
+    #     deck: List[FlashCard] = attr['deck']
+    #     deck_size: int = len(deck)
+    #     counter: int = int(attr['counter'])
+    #
+    #     # If we are finished with the current page and need to fetch the next page
+    #     if len(deck) == 0:
+    #         generate_dynamic_cards(attr)
+    #
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
+        # valid states: REQUESTED, IN-PROGRESS
         logger.info("In QuizAnswerHandler Version 7")
-        attr = handler_input.attributes_manager.session_attributes
 
-        answer = handler_input.request_envelope.request.intent.slots['text']
-        logger.info("QuizAnswerHandler NAME V4: {}".format(
-            answer.name))
-        logger.info("QuizAnswerHandler VALUE V4: {}".format(
-            answer.value))
-
-        logger.info("QuizAnswerHandler NAME V4: {}".format(
-            handler_input.request_envelope.request.intent.slots['text']))
-
-        logger.info("QuizAnswerHandler VALUE V4: {}".format(
-            handler_input.request_envelope.request.intent.slots['text']))
-
-        logger.info("QuizAnswerHandler ATTR V4: {}".format(attr))
-
+        # self.check_page(handler_input=handler_input)
+        current_id = None
         response_builder = handler_input.response_builder
-        attr["counter"] += 1
-        item_count: int = int(attr["counter"])
-        # item = attr["quiz_item"]
-        # item_attr = attr["quiz_attr"]
-
-        is_ans_correct = True
-
-        if is_ans_correct:
-            speech = "Fantastic genius. "
-            attr["quiz_score"] += 1
-            handler_input.attributes_manager.session_attributes = attr
-        else:
-            speech = "What a moron."
-
-        if item_count < MAX_QUESTIONS:
-            # Ask another question
-            speech += "How about another? "
-            question = "What's the weather like in hell?"
-            speech += question
-            reprompt = question
-
-            # Update item and item_attr for next question
-            # item = attr["quiz_item"]
-            # item_attr = attr["quiz_attr"]
-            return response_builder.speak(speech).ask(reprompt).response
-        else:
-            # Finished all questions.
-            speech += "I am so done with you"
-            speech += EXIT_SKILL_MESSAGE
-
+        response_builder.speak("more?")
+        attr = handler_input.attributes_manager.session_attributes
+        if attr['state'] != 'DECK_QUEUED':
             response_builder.set_should_end_session(True)
-            return response_builder.speak(speech).response
+            response_builder.speak("bye")
+        else:
+            response_builder = handler_input.response_builder
+            if 'deck' not in attr:
+                raise Exception("In answer method, but no decked was queued ")
+            deck: List[FlashCard] = attr['deck']
+            if len(deck) == 0:
+                fetch_dynamic_cards(attr)
+
+            deck: List[FlashCard] = attr['deck']
+            if len(deck) == 0:
+                print("Zero pull from cards")
+                current_id = None
+                response_builder.set_should_end_session(True)
+                response_builder.speak("bye")
+            else:
+                flash_card = deck[0]
+                current_id = flash_card.id
+
+                index = 0
+                if 'flow' in attr:
+                    index = attr['flow']  # 0=start, 1=source_phrase, 2=dest_phrase, 3=done
+                if index == 0:
+                    attr['flow'] = 1
+                    response_builder.speak(flash_card.source_phrase).ask("in english")
+                    response_builder.set_should_end_session(False)
+                elif index == 1:
+                    url = flash_card.dest_mp3_url
+                    # play(url)
+                    print(f"Play: {flash_card.dest_phrase} .. {url}")
+                    print("---")
+                    deck.pop(0)
+                    attr['flow'] = 0
+                    attr["counter"] += 1
+                    if len(deck) == 0:
+                        fetch_dynamic_cards(attr)
+
+                    deck: List[FlashCard] = attr['deck']
+                    if len(deck) == 0:
+                        response_builder.speak("That's all in this set.  Bye!")
+                        response_builder.set_should_end_session(True)
+                    else:
+                        attr['flow'] = 0
+                        flash_card = deck[0]
+                        current_id = flash_card.id
+                        response_builder.speak("next?")
+                        response_builder.set_should_end_session(False)
+
+            response = response_builder.response
+            if current_id is not None:
+                print(f"Id: {current_id}, Speak: {response.output_speech.ssml}")
+            # print(f"Ask: {response.reprompt.output_speech.ssml}")
+            return response
 
 
 class RepeatHandler(AbstractRequestHandler):

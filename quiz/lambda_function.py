@@ -7,6 +7,7 @@
 
 import json
 import logging
+from typing import List
 
 from ask_sdk_core.dispatch_components import (
     AbstractRequestHandler, AbstractExceptionHandler,
@@ -17,9 +18,15 @@ from ask_sdk_core.skill_builder import SkillBuilder
 from ask_sdk_core.utils import is_intent_name, is_request_type
 from ask_sdk_model import Response
 
-WELCOME_MESSAGE = "Cheesy goodness!"
-HELP_MESSAGE = "Figure it out for yourself, looser!"
-EXIT_SKILL_MESSAGE = "good riddance!"
+from lambda_utils import SlotInfo, convert_person_to_pronouns
+
+PROGRAM_NAME = "verb-flashcards"
+WELCOME_MESSAGE = "Let's play!"
+HELP_MESSAGE = f"{PROGRAM_NAME} provides a set of flash cards based on your requirements.  " \
+               f"Each flash card will say a phrase in the source language, then pause for your response.  " \
+               f"{PROGRAM_NAME} will then say the same phrase in the destination language"
+
+EXIT_SKILL_MESSAGE = f"Thanks for playing {PROGRAM_NAME}"
 START_QUIZ_MESSAGE = "Let's get this party started. "
 MAX_QUESTIONS = 10
 FALLBACK_ANSWER = "I can't help you."
@@ -29,6 +36,12 @@ sb = SkillBuilder()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+personas = {
+    "first": {"plural": "we", "singular": "i"},
+    "second": {"plural": "you", "singular": "you"},
+    "third": {"plural": "they", "singular": "he"}
+}
 
 
 # Request Handler classes
@@ -99,10 +112,32 @@ class QuizHandler(AbstractRequestHandler):
     def handle(self, handler_input):
         # type: (HandlerInput) -> Response
         logger.info("In QuizHandler")
+        slots = handler_input.request_envelope.request.intent.slots
+
+        # parse user utterances
+        tenses = SlotInfo.get_instance(slots, 'tense', ["past", "present", "future"])
+        game_type = SlotInfo.get_instance(slots, 'game_type', ["conjugation"])
+        verbs = SlotInfo.get_instance(slots, 'verbs', [])
+        person = SlotInfo.get_instance(slots, 'person', ["first","second","third"])
+        plurality = SlotInfo.get_instance(slots, 'plurality', ["singular", "plural"])
+
+        # transpose person and plurality to pronouns (he, she, we, you...)
+        person.resolved_values = convert_person_to_pronouns(person, plurality)
+
         attr = handler_input.attributes_manager.session_attributes
-        attr["state"] = "QUIZ"
-        attr["counter"] = 0
-        attr["quiz_score"] = 0
+        attr["state"] = "REQUESTED"
+        attr["offset"] = 0
+        attr["tense"] = tenses.to_string()
+        attr["game_type"] = game_type.to_string()
+        attr["verbs"] = verbs.to_string()
+        attr["pronouns"] = person.to_string()
+
+        logger.info("attr:GAME-TYPE: {}".format(attr["game_type"]))
+        logger.info("attr:TENSE: {}".format(attr["tense"]))
+        logger.info("attr:PRONOUNS: {}".format(attr["pronouns"]))
+        logger.info("attr:VERBS: {}".format(attr["verbs"]))
+
+        logger.info("attr:PLURALS: {}".format(plurality.to_string()))
 
         question = "What's your favorite color?"
         response_builder = handler_input.response_builder

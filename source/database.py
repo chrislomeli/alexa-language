@@ -47,9 +47,11 @@ class Database(object):
             host=host,
             port="5432")
 
-    def fetch_rows(self, offset, page_size) -> List[FlashCard]:
+    def query_dynamic_cards(self, offset, page_size) -> List[FlashCard]:
         # 0=conjugation_id, 1=phrase_id, 2=verb, 3=tense, 4=pronoun, 5=conjugation,  6=phrase, rn
-        sql = self.sql_statement + f""" limit {page_size} offset {offset}"""
+        limits = f""" limit {page_size} offset {offset}"""
+        sql = self.sql_statement + limits
+        print(f"QUERY: {limits}")
         cur = self.connection.cursor()
         cur.execute(sql)
         query_rows = cur.fetchall()
@@ -67,18 +69,15 @@ class Database(object):
             response.append(flashCard)
         return response
 
-    def set_query(self, pronouns: str = None, tenses: str = None, verbs_str: str = None, distinct=True, random=False):
-        pronoun_list = list(
-            map(lambda y: f"""'{y}'""",  # each word has single quotes
-                filter(lambda x: x in ("i", "he", "she", "you", "we", "they"),  # filter invalid choices
-                       pronouns.split() if pronouns else []))) # split into an array
-        tense_list = list(
-            map(lambda y: f"""'{y}'""",
-                filter(lambda x: x in ("future", "past", "present"), tenses.split() if tenses else [])))
-        verb_list = list(
-            map(lambda y: f"""'{y}'""", verbs_str.split() if verbs_str else []))
+    def set_dynamic_cards_query(self, source_lang: str, pronouns: str = None, tenses: str = None, verbs: str = None, standard=False, distinct=True, random=False):
+
+        pronoun_list = [] if not pronouns else list(map(lambda y: f"""'{y}'""", pronouns))
+        tense_list = [] if not tenses else list(map(lambda y: f"""'{y}'""", tenses))
+        verb_list = [] if not verbs else list(map(lambda y: f"""'{y}'""", verbs))
         where_list = []
-        if distinct:
+        if standard:
+            where_list.append("standard")  # include only one of each conjugation
+        elif distinct:
             where_list.append("rn = 1")  # include only one of each conjugation
         if len(tense_list) > 0:
             s = ", ".join(tense_list)
@@ -92,7 +91,7 @@ class Database(object):
         where_clause = "" if len(where_list) == 0 else "where " + " and ".join(where_list)
         order_clause = "" if random else " order by verb, T.ordinal, P.ordinal, rn "
 
-        self.sql_statement = f"""select conjugation_id, phrase_id, verb, tense, pronoun, conjugation,  phrase, rn
+        self.sql_statement = f"""select conjugation_id, phrase_id, verb, tense, pronoun, conjugation,  phrase, rn, standard
         from ( select C.conjugation_id,
                         R.phrase_id,
                         C.verb,
@@ -100,6 +99,7 @@ class Database(object):
                         C.pronoun,
                         C.conjugation,
                         R.phrase,
+                        R.standard,
                         row_number() over (partition by C.conjugation_id) as rn
                  from verbs.conjugations C
                           join verbs.pronouns P on P.pronoun = C.pronoun
@@ -109,20 +109,20 @@ class Database(object):
              ) X {where_clause}"""
 
 
-if __name__ == "__main__":
-    verbs = Database(database="postgres", user="postgres", password="chinois1",
-                     host="aws-postgres-1.cxq7vuc4ekiv.us-east-1.rds.amazonaws.com", port="5432")
-    verbs.set_query(pronouns="i he or we", tenses="present and past", verbs_str="stay and have")
-
-    page_size_num = 25
-    offset_num = 0
-    for i in range(100):
-        rows = verbs.fetch_rows(page_size=page_size_num, offset=offset_num)
-        if len(rows) == 0:
-            break
-        print("\n---fetch---")
-        for r in rows:
-            print("%r" % r.to_string())
-        offset_num += page_size_num
-
-    pass
+# if __name__ == "__main__":
+#     db = Database(database="postgres", user="postgres", password="chinois1",
+#                      host="aws-postgres-1.cxq7vuc4ekiv.us-east-1.rds.amazonaws.com", port="5432")
+#     db.set_dynamic_cards_query(pronouns="i he or we", tenses="present and past", verbs="stay and have")
+#
+#     page_size_num = 25
+#     offset_num = 0
+#     for i in range(100):
+#         rows = db.query_dynamic_cards(page_size=page_size_num, offset=offset_num)
+#         if len(rows) == 0:
+#             break
+#         print("\n---fetch---")
+#         for r in rows:
+#             print("%r" % r.to_string())
+#         offset_num += page_size_num
+#
+#     pass

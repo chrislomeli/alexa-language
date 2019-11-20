@@ -68,9 +68,6 @@ class SlotInfo:
         if len(self.resolved_values) == 0:
             self.resolved_values = default
 
-    def get_resolved_values(self):
-        return self.resolved_values
-
     def parse_verbs(self, request_string: str) -> List[str]:
         words = request_string.split()
         logger.info("YES WE ARE PARSING VERBS: {}".format(",".join(words)))
